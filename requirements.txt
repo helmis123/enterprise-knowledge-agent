@@ -30,6 +30,11 @@ langchain-community==0.0.10
 #   Contient: SQLite + fichiers binaires pour vecteurs
 chromadb==0.4.18
 
+# onnxruntime: Runtime ONNX pour les modèles d'embeddings
+#   Requis par: ChromaDB (pour les embedding functions par défaut)
+#   Note: Même si on n'utilise pas d'embedding function par défaut
+onnxruntime==1.18.0
+
 # sentence-transformers: Modèle pour générer des embeddings
 #   Utilisé pour: Convertir texte → vecteur 384D
 #   Modèle: all-MiniLM-L6-v2

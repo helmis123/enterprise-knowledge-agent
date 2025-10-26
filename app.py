@@ -11,13 +11,13 @@ st.set_page_config(
     page_icon="🤖",
     layout="centered"
 )
-
+    
 # Initialiser l'authentification
 auth = SimpleAuth()
-
+    
 # Vérifier l'authentification
 if not auth.require_auth():
-    st.stop()
+        st.stop()
 
 # Si authentifié, afficher l'application
 st.title("🤖 Agent IA")
@@ -54,8 +54,12 @@ if uploaded_file is not None:
     with st.spinner("Extraction du texte en cours..."):
         from src.document_reader import DocumentReader
         
+        # Créer le dossier data s'il n'existe pas
+        data_dir = Path("data")
+        data_dir.mkdir(exist_ok=True)
+        
         # Sauvegarder temporairement
-        temp_path = Path("data") / uploaded_file.name
+        temp_path = data_dir / uploaded_file.name
         with open(temp_path, "wb") as f:
             f.write(uploaded_file.getbuffer())
         

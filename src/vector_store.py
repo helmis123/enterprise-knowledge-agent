@@ -48,7 +48,8 @@ class VectorStore:
         try:
             self.collection = self.client.get_or_create_collection(
                 name=name,
-                metadata={"hnsw:space": "cosine"}  # Distance cosinus pour similarité
+                metadata={"hnsw:space": "cosine"},  # Distance cosinus pour similarité
+                embedding_function=None  # Pas d'embedding function car on fournit déjà les embeddings
             )
             logger.info(f"Collection '{name}' créée/récupérée")
         except Exception as e:
