@@ -71,8 +71,8 @@ class SimpleAuth:
         st.markdown("Accédez à l'Agent IA")
         
         with st.form("login_form"):
-            username = st.text_input("👤 Nom d'utilisateur")
-            password = st.text_input("🔑 Mot de passe", type="password")
+            username = st.text_input("👤 Nom d'utilisateur", value="admin")
+            password = st.text_input("🔑 Mot de passe", type="password", value="admin123")
             submit = st.form_submit_button("Se connecter")
             
             if submit:
