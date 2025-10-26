@@ -89,6 +89,68 @@ if search_query:
 
 st.markdown("---")
 
+# Section chatbot RAG
+st.subheader("💬 Chatbot avec vos documents")
+st.markdown("Posez une question et obtenez une réponse basée sur vos documents stockés dans ChromaDB.")
+
+chat_query = st.text_input("Votre question :", placeholder="Ex: Expliquez le télétravail", key="chat_input")
+
+if chat_query:
+    with st.spinner("Recherche et génération de réponse..."):
+        try:
+            from src.llm_client import OllamaClient
+            from src.vector_store import VectorStore
+            from sentence_transformers import SentenceTransformer
+            
+            # Vérifier Ollama
+            llm_client = OllamaClient()
+            if not llm_client.check_connection():
+                st.error("⚠️ Ollama n'est pas accessible sur http://localhost:11434")
+            else:
+                # Rechercher dans ChromaDB
+                model = SentenceTransformer('all-MiniLM-L6-v2')
+                query_emb = model.encode([chat_query], convert_to_tensor=False)[0].tolist()
+                
+                vector_store = VectorStore()
+                vector_store.create_collection()
+                results = vector_store.search(query_emb, n_results=3)
+                
+                if results['documents'] and len(results['documents'][0]) > 0:
+                    # Construire le contexte (limiter à 2 documents et 1500 chars max)
+                    context_parts = []
+                    total_length = 0
+                    max_length = 1500
+                    
+                    for doc in results['documents'][0][:2]:  # Max 2 documents
+                        if total_length + len(doc) > max_length:
+                            remaining = max_length - total_length
+                            context_parts.append(doc[:remaining])
+                            break
+                        context_parts.append(doc)
+                        total_length += len(doc)
+                    
+                    context = "\n\n".join(context_parts)
+                    
+                    # Générer la réponse
+                    response = llm_client.generate_response(chat_query, context)
+                    
+                    st.success("✅ Réponse générée :")
+                    st.markdown(response)
+                    
+                    # Sources
+                    with st.expander("📚 Documents utilisés (3 sources)"):
+                        for i, doc in enumerate(results['documents'][0], 1):
+                            st.markdown(f"**Source {i}:**")
+                            st.text(doc[:300] + "..." if len(doc) > 300 else doc)
+                else:
+                    st.warning("Aucun document trouvé dans ChromaDB. Upload et stockez des documents d'abord.")
+                    
+        except Exception as e:
+            st.error(f"❌ Erreur: {e}")
+            st.exception(e)
+
+st.markdown("---")
+
 # Upload et extraction de documents
 st.subheader("📄 Upload de Documents")
 

@@ -35,6 +35,9 @@ chromadb==0.4.18
 #   Note: Même si on n'utilise pas d'embedding function par défaut
 onnxruntime==1.18.0
 
+# requests: Client HTTP pour l'API Ollama
+requests==2.31.0
+
 # sentence-transformers: Modèle pour générer des embeddings
 #   Utilisé pour: Convertir texte → vecteur 384D
 #   Modèle: all-MiniLM-L6-v2
