@@ -216,7 +216,52 @@ if uploaded_file is not None:
                         st.info(f"📊 Taille totale: ~{total_size/1024:.2f} KB pour les embeddings + métadonnées")
                     
                     st.success(f"✅ {len(embeddings)} éléments prêts pour ChromaDB!")
-                    st.markdown("**Prochaine étape:** Stockage dans la base vectorielle")
+                    
+                    # Bouton pour stocker dans ChromaDB
+                    st.markdown("---")
+                    st.subheader("💾 Stockage dans ChromaDB")
+                    
+                    if st.button("💾 Stocker dans ChromaDB", type="primary"):
+                        with st.spinner("Stockage en cours..."):
+                            try:
+                                from src.vector_store import VectorStore
+                                import numpy as np
+                                
+                                # Initialiser la base vectorielle
+                                vector_store = VectorStore()
+                                vector_store.create_collection()
+                                
+                                # Préparer les données pour ChromaDB
+                                doc_ids = [f"{uploaded_file.name}_{i}" for i in range(len(chunks))]
+                                metadatas = []
+                                for i, chunk in enumerate(chunks):
+                                    metadatas.append({
+                                        "source": uploaded_file.name,
+                                        "chunk_index": i,
+                                        "total_chunks": len(chunks),
+                                        "file_type": metadata["file_type"]
+                                    })
+                                
+                                # Convertir en listes (ChromaDB n'aime pas numpy arrays)
+                                embeddings_list = [emb.tolist() if hasattr(emb, 'tolist') else list(emb) for emb in embeddings]
+                                
+                                # Stocker dans ChromaDB
+                                vector_store.add_documents(
+                                    embeddings=embeddings_list,
+                                    documents=chunks,
+                                    metadatas=metadatas,
+                                    ids=doc_ids
+                                )
+                                
+                                st.success(f"✅ {len(chunks)} chunks stockés dans ChromaDB!")
+                                
+                                # Afficher les infos de la collection
+                                info = vector_store.get_collection_info()
+                                st.info(f"📊 Total dans la base: {info['count']} documents")
+                                
+                            except Exception as e:
+                                st.error(f"❌ Erreur lors du stockage: {e}")
+                                st.exception(e)
                     
                 except ImportError:
                     st.warning("⚠️ sentence-transformers non installé. Les embeddings réels seront générés plus tard.")
