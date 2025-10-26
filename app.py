@@ -87,7 +87,7 @@ if uploaded_file is not None:
             - Chaque chunk sera converti en vecteur 384D (embedding)
             - Les embeddings permettent la recherche sémantique
             - Plus petits = plus précis, mais contexte plus limité
-            - Chaque chunk = un "documents'embedding" dans ChromaDB
+            - Chaque chunk = un "embedding" dans ChromaDB
             """)
             
             # Afficher les chunks
@@ -96,9 +96,144 @@ if uploaded_file is not None:
                     st.markdown(f"### Chunk {i}")
                     st.text(chunk)
                     st.markdown("---")
+            
+            # Générer et afficher les embeddings
+            st.subheader("🔢 Génération des Embeddings (Vecteurs 384D)")
+            
+            with st.spinner("Conversion des chunks en vecteurs..."):
+                try:
+                    from sentence_transformers import SentenceTransformer
+                    model = SentenceTransformer('all-MiniLM-L6-v2')
+                    
+                    chunks = result['chunks']
+                    embeddings = model.encode(chunks, convert_to_tensor=False)
+                    
+                    st.success(f"✅ {len(embeddings)} embeddings générés!")
+                    
+                    # Afficher les détails
+                    with st.expander(f"📊 Détails des vecteurs ({len(embeddings)} embeddings)", expanded=True):
+                        for i, (chunk, emb) in enumerate(zip(chunks, embeddings), 1):
+                            st.markdown(f"#### Vecteur {i} (Chunk {i})")
+                            
+                            # Informations générales
+                            col1, col2, col3 = st.columns(3)
+                            with col1:
+                                st.metric("Dimensions", len(emb))
+                            with col2:
+                                st.metric("Taille", f"{len(emb) * 4} bytes")
+                            with col3:
+                                st.metric("Type", "float32")
+                            
+                            # Afficher le vecteur complet formaté
+                            st.markdown("**Le vecteur complet (384 nombres):**")
+                            st.markdown("```")
+                            st.code(f"[{', '.join(map(lambda x: f'{x:.4f}', emb[:50]))}, ... (334 autres)]")
+                            st.markdown("```")
+                            
+                            # Premiers 50 nombres visuellement
+                            st.markdown("**Premiers 50 nombres (pour voir les détails):**")
+                            cols = st.columns(10)
+                            for j in range(min(50, len(emb))):
+                                cols[j % 10].markdown(f"`{emb[j]:.3f}`")
+                            
+                            # Statistiques
+                            st.markdown("**Statistiques du vecteur:**")
+                            col1, col2, col3, col4 = st.columns(4)
+                            with col1:
+                                st.metric("Min", f"{emb.min():.3f}")
+                            with col2:
+                                st.metric("Max", f"{emb.max():.3f}")
+                            with col3:
+                                st.metric("Moyenne", f"{emb.mean():.3f}")
+                            with col4:
+                                st.metric("Écart-type", f"{emb.std():.3f}")
+                            
+                            # Exemple de ce que représente le vecteur
+                            st.info(f"""
+                            **Ce que représente ce vecteur :**
+                            - Chaque nombre capture une information sémantique
+                            - Les 384 nombres ensemble = représentation du texte
+                            - Texte source: "{chunk[:150]}..."
+                            """)
+                            
+                            st.markdown("---")
+                    
+                    # Explication pédagogique
+                    with st.expander("📚 Explication"):
+                        st.markdown("""
+                        **Pourquoi 384 dimensions exactement?**
+                        
+                        - **Modèle utilisé:** all-MiniLM-L6-v2
+                        - **Architecture:** Transformer 6 couches
+                        - **Sortie du pooler:** 384 nombres (décision du design)
+                        
+                        **Pourquoi pas 768 comme GPT?**
+                        - ✅ Plus petit = plus rapide
+                        - ✅ Moins de mémoire (1536 bytes vs 3072 bytes)
+                        - ✅ Suffisant pour la recherche sémantique
+                        - ✅ Qualité excellente pour la taille
+                        
+                        **Chaque dimension capture quoi?**
+                        - Dimensions apprises automatiquement par le modèle
+                        - Ne correspondent pas à des concepts simples
+                        - Combinaison complexe de sémantique
+                        - Résultat: des représentations riches en sens
+                        
+                        **Comparaison des tailles:**
+                        - 384D (all-MiniLM): Plus rapide, assez précis ✅
+                        - 768D (BERT-base): Plus lent, plus précis
+                        - 1536D (GPT-3 embeddings): Très lent, très précis
+                        
+                        **Pourquoi des vecteurs?**
+                        - Permet la recherche par sens (pas juste mots)
+                        - Textes similaires = vecteurs proches
+                        - Ultra rapide avec ChromaDB (<1ms)
+                        """)
+                    
+                    # Section: Résumé pour ChromaDB
+                    st.markdown("---")
+                    st.subheader("💾 Ce qui sera transféré vers ChromaDB")
+                    
+                    with st.expander("📦 Données à stocker (cliquez pour voir tout)", expanded=True):
+                        st.markdown("### 1. Embeddings (Vecteurs)")
+                        for i, emb in enumerate(embeddings, 1):
+                            st.code(f"Embedding {i}: {len(emb)} dimensions, {len(emb)*4} bytes", language=None)
+                        
+                        st.markdown("### 2. Chunks (Textes originaux)")
+                        for i, chunk in enumerate(chunks, 1):
+                            st.text_area(f"Chunk {i}", chunk[:200] + "..." if len(chunk) > 200 else chunk, 
+                                       height=80, key=f"chunk_{i}", disabled=True)
+                        
+                        st.markdown("### 3. Métadonnées (JSON)")
+                        st.json(metadata)
+                        
+                        st.markdown("### 4. Identifiants uniques")
+                        for i in range(len(chunks)):
+                            doc_id = f"{uploaded_file.name}_{i}"
+                            st.code(f"ID {i+1}: {doc_id}", language=None)
+                        
+                        total_size = sum(len(emb) * 4 for emb in embeddings)
+                        st.info(f"📊 Taille totale: ~{total_size/1024:.2f} KB pour les embeddings + métadonnées")
+                    
+                    st.success(f"✅ {len(embeddings)} éléments prêts pour ChromaDB!")
+                    st.markdown("**Prochaine étape:** Stockage dans la base vectorielle")
+                    
+                except ImportError:
+                    st.warning("⚠️ sentence-transformers non installé. Les embeddings réels seront générés plus tard.")
+                    st.markdown("""
+                    **Pour le moment, voici à quoi ressemblerait un vecteur:**
+                    
+                    - **Dimensions:** 384
+                    - **Exemple:** [0.0234, -0.1567, 0.2845, ..., -0.0794]
+                    - **Taille:** 1536 bytes par chunk
+                    - **Type:** float32 (nombres à virgule flottante)
+                    
+                    Chaque nombre capture une caractéristique sémantique du texte!
+                    """)
+                except Exception as e:
+                    st.error(f"❌ Erreur: {e}")
         else:
             st.error("❌ Erreur lors du traitement du document")
         
         # Nettoyer
         temp_path.unlink()
-
