@@ -1,65 +1,57 @@
 """
-Module d'authentification basique pour l'Agent Knowledge Interne
+Système d'authentification simple
 """
 import streamlit as st
 import hashlib
-import logging
-from typing import Optional, Dict, Any
-from config import Config
-
-logger = logging.getLogger(__name__)
+from typing import Optional, Dict
 
 class SimpleAuth:
-    """Système d'authentification simple"""
+    """Système d'authentification basique avec Streamlit"""
     
     def __init__(self):
         # Utilisateurs par défaut (en production, utiliser une vraie base de données)
+        # Format: {username: {password_hash, name, role}}
         self.users = {
             "admin": {
-                "password": self._hash_password("admin123"),
-                "role": "admin",
-                "name": "Administrateur"
+                "password_hash": self._hash_password("admin123"),
+                "name": "Administrateur",
+                "role": "admin"
             },
             "user": {
-                "password": self._hash_password("user123"),
-                "role": "user", 
-                "name": "Utilisateur Standard"
-            },
-            "demo": {
-                "password": self._hash_password("demo123"),
-                "role": "user",
-                "name": "Utilisateur Démo"
+                "password_hash": self._hash_password("user123"),
+                "name": "Utilisateur Standard",
+                "role": "user"
             }
         }
     
     def _hash_password(self, password: str) -> str:
-        """Hasher un mot de passe"""
+        """Hasher un mot de passe avec SHA256"""
         return hashlib.sha256(password.encode()).hexdigest()
     
-    def authenticate(self, username: str, password: str) -> Optional[Dict[str, Any]]:
+    def authenticate(self, username: str, password: str) -> bool:
         """Authentifier un utilisateur"""
         if username in self.users:
-            hashed_password = self._hash_password(password)
-            if self.users[username]["password"] == hashed_password:
-                return {
-                    "username": username,
-                    "role": self.users[username]["role"],
-                    "name": self.users[username]["name"]
-                }
+            password_hash = self._hash_password(password)
+            if self.users[username]["password_hash"] == password_hash:
+                return True
+        return False
+    
+    def get_user_info(self, username: str) -> Optional[Dict]:
+        """Obtenir les informations d'un utilisateur"""
+        if username in self.users:
+            return {
+                "username": username,
+                "name": self.users[username]["name"],
+                "role": self.users[username]["role"]
+            }
         return None
     
     def is_authenticated(self) -> bool:
-        """Vérifier si l'utilisateur est authentifié"""
+        """Vérifier si l'utilisateur est authentifié dans la session"""
         return "authenticated" in st.session_state and st.session_state["authenticated"]
     
-    def get_current_user(self) -> Optional[Dict[str, Any]]:
-        """Obtenir les informations de l'utilisateur actuel"""
-        if self.is_authenticated():
-            return st.session_state.get("user_info")
-        return None
-    
-    def login_page(self) -> bool:
-        """Afficher la page de connexion et retourner True si authentifié"""
+    def login_page(self):
+        """Afficher la page de connexion"""
         st.markdown("""
         <style>
             .login-container {
@@ -76,75 +68,48 @@ class SimpleAuth:
         st.markdown('<div class="login-container">', unsafe_allow_html=True)
         
         st.title("🔐 Connexion")
-        st.markdown("Connectez-vous pour accéder à l'Agent Knowledge Interne")
+        st.markdown("Accédez à l'Agent IA")
         
         with st.form("login_form"):
-            username = st.text_input("Nom d'utilisateur")
-            password = st.text_input("Mot de passe", type="password")
-            submit_button = st.form_submit_button("Se connecter")
+            username = st.text_input("👤 Nom d'utilisateur")
+            password = st.text_input("🔑 Mot de passe", type="password")
+            submit = st.form_submit_button("Se connecter")
             
-            if submit_button:
-                user_info = self.authenticate(username, password)
-                if user_info:
+            if submit:
+                if self.authenticate(username, password):
+                    # Sauvegarder dans la session
                     st.session_state["authenticated"] = True
-                    st.session_state["user_info"] = user_info
-                    st.success(f"✅ Bienvenue, {user_info['name']} !")
+                    st.session_state["username"] = username
+                    st.session_state["user_info"] = self.get_user_info(username)
+                    
+                    st.success(f"✅ Bienvenue, {st.session_state['user_info']['name']} !")
                     st.rerun()
                 else:
                     st.error("❌ Nom d'utilisateur ou mot de passe incorrect")
         
         st.markdown("</div>", unsafe_allow_html=True)
         
-        # Informations de connexion pour la démo
-        with st.expander("ℹ️ Comptes de démonstration"):
+        # Afficher les comptes de test
+        with st.expander("ℹ️ Comptes de test"):
             st.markdown("""
-            **Comptes disponibles :**
+            **Pour tester :**
             - **admin** / admin123 (Administrateur)
-            - **user** / user123 (Utilisateur standard)
-            - **demo** / demo123 (Utilisateur démo)
-            
-            ⚠️ **Important** : Changez ces mots de passe en production !
+            - **user** / user123 (Utilisateur)
             """)
-        
-        return False
     
     def logout(self):
         """Déconnecter l'utilisateur"""
         if "authenticated" in st.session_state:
             del st.session_state["authenticated"]
+        if "username" in st.session_state:
+            del st.session_state["username"]
         if "user_info" in st.session_state:
             del st.session_state["user_info"]
         st.rerun()
     
-    def require_auth(self, required_role: str = "user") -> bool:
-        """Décorateur pour exiger l'authentification"""
+    def require_auth(self):
+        """Décorateur pour protéger une page"""
         if not self.is_authenticated():
-            return self.login_page()
-        
-        user_info = self.get_current_user()
-        if not user_info:
-            return self.login_page()
-        
-        # Vérifier les rôles
-        if required_role == "admin" and user_info["role"] != "admin":
-            st.error("❌ Accès refusé : droits administrateur requis")
+            self.login_page()
             return False
-        
         return True
-
-def auth_sidebar():
-    """Afficher les informations d'authentification dans la sidebar"""
-    auth = SimpleAuth()
-    
-    if auth.is_authenticated():
-        user_info = auth.get_current_user()
-        st.sidebar.markdown("---")
-        st.sidebar.markdown(f"👤 **Connecté en tant que :** {user_info['name']}")
-        st.sidebar.markdown(f"🔑 **Rôle :** {user_info['role']}")
-        
-        if st.sidebar.button("🚪 Déconnexion"):
-            auth.logout()
-    else:
-        st.sidebar.markdown("---")
-        st.sidebar.markdown("🔐 **Non connecté**")
-        st.sidebar.markdown("Connectez-vous pour accéder à toutes les fonctionnalités")

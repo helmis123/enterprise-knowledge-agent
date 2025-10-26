@@ -1,1 +1,4 @@
-# Module src pour l'Agent Knowledge Interne
+"""
+Package src - Modules de l'application
+"""
+

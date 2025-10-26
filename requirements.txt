@@ -1,34 +1,125 @@
-# Core dependencies
+# ============================================
+# IMPORTANT : TOUT EST 100% GRATUIT ET LOCAL
+# ============================================
+# ✅ Pas de coût par requête
+# ✅ Pas de limites de requêtes
+# ✅ Pas de dépendance cloud
+# ✅ Totalement privé (données restent sur votre machine)
+# ✅ Fonctionne hors ligne (sauf téléchargement initial modèles)
+# ============================================
+
+# ============================================
+# CORE DEPENDENCIES - Dependencies principales
+# ============================================
+
+# streamlit: Interface web interactive pour créer l'application
+#   Utilisé pour: UI utilisateur, chat, upload documents
 streamlit==1.28.1
+
+# langchain: Framework pour applications LLM (GRATUIT, open-source)
+#   Utilisé pour: Simplifier le chaînage de prompts, abstractions LLM
+#   Note: LangChain Python est 100% GRATUIT (LangSmith Cloud est payant)
 langchain==0.0.350
+
+# langchain-community: Extensions communauté LangChain
+#   Utilisé pour: Intégrations supplémentaires
 langchain-community==0.0.10
+
+# chromadb: Base de données vectorielle pour stocker les embeddings
+#   Utilisé pour: Stocker et rechercher les documents indexés
+#   Contient: SQLite + fichiers binaires pour vecteurs
 chromadb==0.4.18
+
+# sentence-transformers: Modèle pour générer des embeddings
+#   Utilisé pour: Convertir texte → vecteur 384D
+#   Modèle: all-MiniLM-L6-v2
 sentence-transformers==2.2.2
+
+# huggingface-hub: Accès aux modèles Hugging Face
+#   Utilisé pour: Télécharger all-MiniLM-L6-v2
 huggingface-hub==0.19.4
 
-# Document processing
+
+# ============================================
+# DOCUMENT PROCESSING - Traitement documents
+# ============================================
+
+# PyPDF2: Extraire le texte des fichiers PDF
+#   Utilisé pour: Lire contenu des fichiers .pdf
 PyPDF2==3.0.1
+
+# python-docx: Extraire le texte des fichiers Word
+#   Utilisé pour: Lire contenu des fichiers .docx
 python-docx==1.1.0
+
+# beautifulsoup4: Parser HTML/XML
+#   Utilisé pour: Extraire texte de HTML, nettoyer contenu
 beautifulsoup4==4.12.2
+
+# markdown: Parser Markdown
+#   Utilisé pour: Lire fichiers .md
 markdown==3.5.1
 
-# LLM integration
-ollama==0.1.7
-openai==1.3.7
 
-# Authentication & Security
+# ============================================
+# LLM INTEGRATION - Intégration IA
+# ============================================
+
+# ollama: Client pour Ollama (LLM local)
+#   Utilisé pour: Générer réponses intelligentes avec Llama 3
+ollama==0.1.7
+
+
+# ============================================
+# AUTHENTICATION & SECURITY - Sécurité
+# ============================================
+
+# python-jose: Encode/décode tokens JWT
+#   Utilisé pour: Authentification avec tokens
 python-jose[cryptography]==3.3.0
+
+# passlib: Hashage de mots de passe
+#   Utilisé pour: Sécuriser les mots de passe
 passlib[bcrypt]==1.7.4
+
+# python-multipart: Upload fichiers multipart
+#   Utilisé pour: Télécharger fichiers dans Streamlit
 python-multipart==0.0.6
 
-# Utilities
+
+# ============================================
+# UTILITIES - Utilitaires
+# ============================================
+
+# python-dotenv: Charger variables d'environnement
+#   Utilisé pour: Lire config.env
 python-dotenv==1.0.0
+
+# pydantic: Validation de données
+#   Utilisé pour: Valider structures de données
 pydantic==2.5.0
+
+# numpy: Calculs numériques
+#   Utilisé pour: Manipulation arrays, calculs embeddings
 numpy==1.24.3
-pandas==2.0.3
+
+# tqdm: Barres de progression
+#   Utilisé pour: Afficher progression traitement
 tqdm==4.66.1
 
-# Development
+
+# ============================================
+# DEVELOPMENT - Outils développement
+# ============================================
+
+# pytest: Framework de tests
+#   Utilisé pour: Tests unitaires
 pytest==7.4.3
+
+# black: Formatter de code
+#   Utilisé pour: Formater le code automatiquement
 black==23.11.0
+
+# flake8: Linter Python
+#   Utilisé pour: Vérifier qualité du code
 flake8==6.1.0
