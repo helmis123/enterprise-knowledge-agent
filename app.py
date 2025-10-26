@@ -41,6 +41,54 @@ with st.sidebar:
 # Contenu principal
 st.header("🎯 Agent IA")
 
+# Section de recherche sémantique
+st.subheader("🔍 Recherche Sémantique")
+st.markdown("Posez une question et trouvez les documents pertinents dans la base vectorielle.")
+
+search_query = st.text_input("Votre question :", placeholder="Ex: Quels sont les avantages du télétravail ?")
+
+if search_query:
+    with st.spinner("Recherche en cours..."):
+        try:
+            from src.vector_store import VectorStore
+            from sentence_transformers import SentenceTransformer
+            
+            # Initialiser le modèle d'embeddings
+            model = SentenceTransformer('all-MiniLM-L6-v2')
+            
+            # Initialiser la base vectorielle
+            vector_store = VectorStore()
+            vector_store.create_collection()
+            
+            # Convertir la requête en embedding
+            query_embedding = model.encode([search_query], convert_to_tensor=False)[0].tolist()
+            
+            # Rechercher dans ChromaDB
+            results = vector_store.search(query_embedding, n_results=5)
+            
+            # Afficher les résultats
+            if results['documents'] and len(results['documents'][0]) > 0:
+                st.success(f"✅ {len(results['documents'][0])} résultats trouvés")
+                
+                for i, (doc, metadata) in enumerate(zip(
+                    results['documents'][0],
+                    results['metadatas'][0] if results['metadatas'] else [{}] * len(results['documents'][0])
+                ), 1):
+                    with st.expander(f"📄 Résultat {i}", expanded=True):
+                        st.markdown(f"**Document:**\n{doc}")
+                        if metadata:
+                            st.markdown(f"**Source:** {metadata.get('source', 'N/A')}")
+                            st.markdown(f"**Chunk:** {metadata.get('chunk_index', 'N/A')}/{metadata.get('total_chunks', 'N/A')}")
+                            st.markdown(f"**Type:** {metadata.get('file_type', 'N/A')}")
+            else:
+                st.warning("Aucun résultat trouvé. Essayez de stocker des documents d'abord.")
+                
+        except Exception as e:
+            st.error(f"❌ Erreur lors de la recherche: {e}")
+            st.exception(e)
+
+st.markdown("---")
+
 # Upload et extraction de documents
 st.subheader("📄 Upload de Documents")
 
