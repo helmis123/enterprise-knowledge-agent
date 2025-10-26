@@ -23,7 +23,8 @@ data/*
 !data/.gitkeep
 
 # ChromaDB
-chroma_db/*/
+chroma_db/
+!chroma_db/.gitkeep
 
 # OS
 .DS_Store
