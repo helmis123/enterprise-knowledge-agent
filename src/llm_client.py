@@ -26,10 +26,10 @@ class OllamaClient:
             logger.error(f"Impossible de se connecter à Ollama: {e}")
             return False
     
-    def generate_response(self, prompt: str, context: Optional[str] = None) -> str:
+    def generate_response(self, prompt: str, context: Optional[str] = None, user_name: Optional[str] = None) -> str:
         """Génère une réponse avec le LLM"""
         # Construire le prompt complet
-        full_prompt = self._build_prompt(prompt, context)
+        full_prompt = self._build_prompt(prompt, context, user_name)
         
         # Préparer la requête avec des paramètres optimisés
         payload = {
@@ -60,8 +60,14 @@ class OllamaClient:
             logger.error(f"Erreur: {e}")
             return f"Erreur: {str(e)}"
     
-    def _build_prompt(self, question: str, context: Optional[str]) -> str:
+    def _build_prompt(self, question: str, context: Optional[str], user_name: Optional[str] = None) -> str:
         """Construire le prompt avec le contexte"""
+        
+        # Ajouter le nom d'utilisateur à l'instruction
+        user_context = ""
+        if user_name:
+            user_context = f"\n- L'utilisateur qui pose la question est: {user_name}. Ne confonds PAS ce nom avec les noms mentionnés dans les documents."
+        
         if context:
             return f"""Tu es un assistant IA interne d'entreprise. Réponds en français en utilisant uniquement les informations des documents fournis.
 
@@ -77,10 +83,15 @@ INSTRUCTIONS:
 - Si l'information n'est pas dans les documents, réponds: "Je ne trouve pas cette information dans les documents internes disponibles."
 - Sois précis et cite les sources quand c'est possible
 - Réponds de manière professionnelle et utile
+- Ne mentionne JAMAIS les noms des personnes trouvés dans les documents dans ta réponse{user_context}
 
 RÉPONSE:"""
         else:
-            return f"""Tu es un assistant IA interne d'entreprise. Réponds en français.
+            user_context = ""
+            if user_name:
+                user_context = f"\n\nL'utilisateur qui pose la question est: {user_name}."
+            
+            return f"""Tu es un assistant IA interne d'entreprise. Réponds en français.{user_context}
 
 QUESTION: {question}
 

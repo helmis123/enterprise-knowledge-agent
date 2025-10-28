@@ -17,7 +17,7 @@ auth = SimpleAuth()
     
 # Vérifier l'authentification
 if not auth.require_auth():
-        st.stop()
+    st.stop()
 
 # Si authentifié, afficher l'application
 st.title("🤖 Agent IA")
@@ -131,8 +131,11 @@ if chat_query:
                     
                     context = "\n\n".join(context_parts)
                     
+                    # Récupérer le nom d'utilisateur
+                    user_name = user_info.get('name', 'Utilisateur')
+                    
                     # Générer la réponse
-                    response = llm_client.generate_response(chat_query, context)
+                    response = llm_client.generate_response(chat_query, context, user_name)
                     
                     st.success("✅ Réponse générée :")
                     st.markdown(response)
@@ -154,245 +157,154 @@ st.markdown("---")
 # Upload et extraction de documents
 st.subheader("📄 Upload de Documents")
 
-uploaded_file = st.file_uploader(
-    "Choisissez un document",
+uploaded_files = st.file_uploader(
+    "Choisissez un ou plusieurs documents",
     type=['pdf', 'docx', 'txt', 'md'],
-    help="Formats supportés: PDF, Word, TXT, Markdown"
+    help="Formats supportés: PDF, Word, TXT, Markdown",
+    accept_multiple_files=True
 )
 
-if uploaded_file is not None:
-    with st.spinner("Extraction du texte en cours..."):
-        from src.document_reader import DocumentReader
-        
-        # Créer le dossier data s'il n'existe pas
-        data_dir = Path("data")
-        data_dir.mkdir(exist_ok=True)
-        
-        # Sauvegarder temporairement
-        temp_path = data_dir / uploaded_file.name
-        with open(temp_path, "wb") as f:
-            f.write(uploaded_file.getbuffer())
-        
-        # Extraire le texte
-        reader = DocumentReader()
-        result = reader.process_document(temp_path)
-        
-        if result["success"]:
-            st.success(f"✅ Document traité: {uploaded_file.name}")
+if uploaded_files is not None and len(uploaded_files) > 0:
+    from src.document_reader import DocumentReader
+    
+    # Créer le dossier data s'il n'existe pas
+    data_dir = Path("data")
+    data_dir.mkdir(exist_ok=True)
+    
+    # Traiter chaque fichier
+    all_results = []
+    total_chunks = []
+    all_metadata = []
+    
+    for uploaded_file in uploaded_files:
+        with st.spinner(f"Extraction du texte en cours: {uploaded_file.name}..."):
+            # Sauvegarder temporairement
+            temp_path = data_dir / uploaded_file.name
+            with open(temp_path, "wb") as f:
+                f.write(uploaded_file.getbuffer())
             
-            # Afficher les métadonnées
-            with st.expander("📊 Métadonnées"):
+            # Extraire le texte
+            reader = DocumentReader()
+            result = reader.process_document(temp_path)
+            
+            if result["success"]:
+                all_results.append({
+                    "file": uploaded_file.name,
+                    "result": result
+                })
+                st.success(f"✅ Document traité: {uploaded_file.name}")
+                
+                # Collecter les chunks pour l'upload en batch
+                for i, chunk in enumerate(result["chunks"]):
+                    total_chunks.append(chunk)
+                    all_metadata.append({
+                        "source": uploaded_file.name,
+                        "chunk_index": i,
+                        "total_chunks": len(result["chunks"]),
+                        "file_type": result["metadata"]["file_type"]
+                    })
+                
+                # Nettoyer le fichier temporaire
+                temp_path.unlink()
+            else:
+                st.error(f"❌ Erreur lors du traitement de {uploaded_file.name}")
+    
+    # Si des fichiers ont été traités avec succès
+    if all_results:
+        st.markdown("---")
+        st.success(f"✅ {len(all_results)} fichier(s) traité(s) avec succès")
+        
+        # Afficher le résumé global
+        total_chunks_count = sum(len(r["result"]["chunks"]) for r in all_results)
+        st.info(f"📊 Total: {total_chunks_count} chunks créés à partir de {len(all_results)} fichier(s)")
+        
+        # Afficher les détails par fichier
+        for idx, file_data in enumerate(all_results):
+            result = file_data["result"]
+            with st.expander(f"📄 {file_data['file']}", expanded=False):
                 metadata = result["metadata"]
-                st.write(f"**Fichier:** {metadata['filename']}")
                 st.write(f"**Type:** {metadata['file_type']}")
                 st.write(f"**Chunks:** {metadata['num_chunks']}")
                 st.write(f"**Mots:** {metadata['total_words']}")
                 st.write(f"**Caractères:** {metadata['total_characters']}")
-            
-            # Afficher un aperçu
-            with st.expander("👁️ Aperçu du texte"):
-                st.text(result["text"][:500] + "..." if len(result["text"]) > 500 else result["text"])
-            
-            st.info(f"💡 {len(result['chunks'])} chunks créés (prêts pour les embeddings)")
-            
-            # Explication des chunks
-            st.markdown("""
-            **📚 À quoi servent les chunks ?**
-            - Chaque chunk sera converti en vecteur 384D (embedding)
-            - Les embeddings permettent la recherche sémantique
-            - Plus petits = plus précis, mais contexte plus limité
-            - Chaque chunk = un "embedding" dans ChromaDB
-            """)
-            
-            # Afficher les chunks
-            with st.expander(f"📑 Chunks ({len(result['chunks'])} morceaux)"):
-                for i, chunk in enumerate(result['chunks'], 1):
-                    st.markdown(f"### Chunk {i}")
-                    st.text(chunk)
-                    st.markdown("---")
-            
-            # Générer et afficher les embeddings
-            st.subheader("🔢 Génération des Embeddings (Vecteurs 384D)")
-            
-            with st.spinner("Conversion des chunks en vecteurs..."):
-                try:
-                    from sentence_transformers import SentenceTransformer
-                    model = SentenceTransformer('all-MiniLM-L6-v2')
-                    
-                    chunks = result['chunks']
-                    embeddings = model.encode(chunks, convert_to_tensor=False)
-                    
-                    st.success(f"✅ {len(embeddings)} embeddings générés!")
-                    
-                    # Afficher les détails
-                    with st.expander(f"📊 Détails des vecteurs ({len(embeddings)} embeddings)", expanded=True):
-                        for i, (chunk, emb) in enumerate(zip(chunks, embeddings), 1):
-                            st.markdown(f"#### Vecteur {i} (Chunk {i})")
-                            
-                            # Informations générales
-                            col1, col2, col3 = st.columns(3)
-                            with col1:
-                                st.metric("Dimensions", len(emb))
-                            with col2:
-                                st.metric("Taille", f"{len(emb) * 4} bytes")
-                            with col3:
-                                st.metric("Type", "float32")
-                            
-                            # Afficher le vecteur complet formaté
-                            st.markdown("**Le vecteur complet (384 nombres):**")
-                            st.markdown("```")
-                            st.code(f"[{', '.join(map(lambda x: f'{x:.4f}', emb[:50]))}, ... (334 autres)]")
-                            st.markdown("```")
-                            
-                            # Premiers 50 nombres visuellement
-                            st.markdown("**Premiers 50 nombres (pour voir les détails):**")
-                            cols = st.columns(10)
-                            for j in range(min(50, len(emb))):
-                                cols[j % 10].markdown(f"`{emb[j]:.3f}`")
-                            
-                            # Statistiques
-                            st.markdown("**Statistiques du vecteur:**")
-                            col1, col2, col3, col4 = st.columns(4)
-                            with col1:
-                                st.metric("Min", f"{emb.min():.3f}")
-                            with col2:
-                                st.metric("Max", f"{emb.max():.3f}")
-                            with col3:
-                                st.metric("Moyenne", f"{emb.mean():.3f}")
-                            with col4:
-                                st.metric("Écart-type", f"{emb.std():.3f}")
-                            
-                            # Exemple de ce que représente le vecteur
-                            st.info(f"""
-                            **Ce que représente ce vecteur :**
-                            - Chaque nombre capture une information sémantique
-                            - Les 384 nombres ensemble = représentation du texte
-                            - Texte source: "{chunk[:150]}..."
-                            """)
-                            
-                            st.markdown("---")
-                    
-                    # Explication pédagogique
-                    with st.expander("📚 Explication"):
-                        st.markdown("""
-                        **Pourquoi 384 dimensions exactement?**
-                        
-                        - **Modèle utilisé:** all-MiniLM-L6-v2
-                        - **Architecture:** Transformer 6 couches
-                        - **Sortie du pooler:** 384 nombres (décision du design)
-                        
-                        **Pourquoi pas 768 comme GPT?**
-                        - ✅ Plus petit = plus rapide
-                        - ✅ Moins de mémoire (1536 bytes vs 3072 bytes)
-                        - ✅ Suffisant pour la recherche sémantique
-                        - ✅ Qualité excellente pour la taille
-                        
-                        **Chaque dimension capture quoi?**
-                        - Dimensions apprises automatiquement par le modèle
-                        - Ne correspondent pas à des concepts simples
-                        - Combinaison complexe de sémantique
-                        - Résultat: des représentations riches en sens
-                        
-                        **Comparaison des tailles:**
-                        - 384D (all-MiniLM): Plus rapide, assez précis ✅
-                        - 768D (BERT-base): Plus lent, plus précis
-                        - 1536D (GPT-3 embeddings): Très lent, très précis
-                        
-                        **Pourquoi des vecteurs?**
-                        - Permet la recherche par sens (pas juste mots)
-                        - Textes similaires = vecteurs proches
-                        - Ultra rapide avec ChromaDB (<1ms)
-                        """)
-                    
-                    # Section: Résumé pour ChromaDB
-                    st.markdown("---")
-                    st.subheader("💾 Ce qui sera transféré vers ChromaDB")
-                    
-                    with st.expander("📦 Données à stocker (cliquez pour voir tout)", expanded=True):
-                        st.markdown("### 1. Embeddings (Vecteurs)")
-                        for i, emb in enumerate(embeddings, 1):
-                            st.code(f"Embedding {i}: {len(emb)} dimensions, {len(emb)*4} bytes", language=None)
-                        
-                        st.markdown("### 2. Chunks (Textes originaux)")
-                        for i, chunk in enumerate(chunks, 1):
-                            st.text_area(f"Chunk {i}", chunk[:200] + "..." if len(chunk) > 200 else chunk, 
-                                       height=80, key=f"chunk_{i}", disabled=True)
-                        
-                        st.markdown("### 3. Métadonnées (JSON)")
-                        st.json(metadata)
-                        
-                        st.markdown("### 4. Identifiants uniques")
-                        for i in range(len(chunks)):
-                            doc_id = f"{uploaded_file.name}_{i}"
-                            st.code(f"ID {i+1}: {doc_id}", language=None)
-                        
-                        total_size = sum(len(emb) * 4 for emb in embeddings)
-                        st.info(f"📊 Taille totale: ~{total_size/1024:.2f} KB pour les embeddings + métadonnées")
-                    
-                    st.success(f"✅ {len(embeddings)} éléments prêts pour ChromaDB!")
-                    
-                    # Bouton pour stocker dans ChromaDB
-                    st.markdown("---")
-                    st.subheader("💾 Stockage dans ChromaDB")
-                    
-                    if st.button("💾 Stocker dans ChromaDB", type="primary"):
-                        with st.spinner("Stockage en cours..."):
-                            try:
-                                from src.vector_store import VectorStore
-                                import numpy as np
-                                
-                                # Initialiser la base vectorielle
-                                vector_store = VectorStore()
-                                vector_store.create_collection()
-                                
-                                # Préparer les données pour ChromaDB
-                                doc_ids = [f"{uploaded_file.name}_{i}" for i in range(len(chunks))]
-                                metadatas = []
-                                for i, chunk in enumerate(chunks):
-                                    metadatas.append({
-                                        "source": uploaded_file.name,
-                                        "chunk_index": i,
-                                        "total_chunks": len(chunks),
-                                        "file_type": metadata["file_type"]
-                                    })
-                                
-                                # Convertir en listes (ChromaDB n'aime pas numpy arrays)
-                                embeddings_list = [emb.tolist() if hasattr(emb, 'tolist') else list(emb) for emb in embeddings]
-                                
-                                # Stocker dans ChromaDB
-                                vector_store.add_documents(
-                                    embeddings=embeddings_list,
-                                    documents=chunks,
-                                    metadatas=metadatas,
-                                    ids=doc_ids
-                                )
-                                
-                                st.success(f"✅ {len(chunks)} chunks stockés dans ChromaDB!")
-                                
-                                # Afficher les infos de la collection
-                                info = vector_store.get_collection_info()
-                                st.info(f"📊 Total dans la base: {info['count']} documents")
-                                
-                            except Exception as e:
-                                st.error(f"❌ Erreur lors du stockage: {e}")
-                                st.exception(e)
-                    
-                except ImportError:
-                    st.warning("⚠️ sentence-transformers non installé. Les embeddings réels seront générés plus tard.")
-                    st.markdown("""
-                    **Pour le moment, voici à quoi ressemblerait un vecteur:**
-                    
-                    - **Dimensions:** 384
-                    - **Exemple:** [0.0234, -0.1567, 0.2845, ..., -0.0794]
-                    - **Taille:** 1536 bytes par chunk
-                    - **Type:** float32 (nombres à virgule flottante)
-                    
-                    Chaque nombre capture une caractéristique sémantique du texte!
-                    """)
-                except Exception as e:
-                    st.error(f"❌ Erreur: {e}")
-        else:
-            st.error("❌ Erreur lors du traitement du document")
         
-        # Nettoyer
-        temp_path.unlink()
+        # Génération des embeddings pour tous les fichiers en batch
+        st.markdown("---")
+        st.subheader("🔢 Génération des Embeddings pour tous les fichiers")
+        
+        with st.spinner(f"Génération des embeddings pour {total_chunks_count} chunks..."):
+            try:
+                from sentence_transformers import SentenceTransformer
+                model = SentenceTransformer('all-MiniLM-L6-v2')
+                
+                # Générer tous les embeddings en une fois
+                embeddings = model.encode(total_chunks, convert_to_tensor=False)
+                
+                st.success(f"✅ {len(embeddings)} embeddings générés pour tous les fichiers!")
+                
+                # Préparer les IDs
+                doc_ids = []
+                for file_data in all_results:
+                    filename = file_data["file"]
+                    num_chunks = len(file_data["result"]["chunks"])
+                    for i in range(num_chunks):
+                        doc_ids.append(f"{filename}_{i}")
+                
+                # Stockage dans ChromaDB
+                st.markdown("---")
+                st.subheader("💾 Stockage dans ChromaDB")
+                
+                # Afficher le résumé avant le stockage
+                with st.expander("📊 Résumé avant stockage", expanded=True):
+                    st.markdown(f"**Nombre de fichiers:** {len(all_results)}")
+                    st.markdown(f"**Nombre total de chunks:** {total_chunks_count}")
+                    st.markdown(f"**Nombre total d'embeddings:** {len(embeddings)}")
+                    
+                    # Taille approximative
+                    total_size = total_chunks_count * 384 * 4  # 384 dimensions * 4 bytes
+                    st.info(f"📊 Taille approximative: ~{total_size/1024:.2f} KB")
+                
+                if st.button("💾 Stocker tous les fichiers dans ChromaDB", type="primary"):
+                    with st.spinner("Stockage en cours..."):
+                        try:
+                            from src.vector_store import VectorStore
+                            
+                            # Initialiser la base vectorielle
+                            vector_store = VectorStore()
+                            vector_store.create_collection()
+                            
+                            # Convertir en listes (ChromaDB n'aime pas numpy arrays)
+                            embeddings_list = [emb.tolist() if hasattr(emb, 'tolist') else list(emb) for emb in embeddings]
+                            
+                            # Stocker dans ChromaDB
+                            vector_store.add_documents(
+                                embeddings=embeddings_list,
+                                documents=total_chunks,
+                                metadatas=all_metadata,
+                                ids=doc_ids
+                            )
+                            
+                            st.success(f"✅ {total_chunks_count} chunks stockés dans ChromaDB depuis {len(all_results)} fichier(s)!")
+                            
+                            # Afficher les infos de la collection
+                            info = vector_store.get_collection_info()
+                            st.info(f"📊 Total dans la base: {info['count']} documents")
+                            
+                        except Exception as e:
+                            st.error(f"❌ Erreur lors du stockage: {e}")
+                            st.exception(e)
+                
+            except ImportError:
+                st.warning("⚠️ sentence-transformers non installé.")
+                st.markdown("""
+                **Pour installer les dépendances:**
+                
+                ```bash
+                pip install -r requirements.txt
+                ```
+                """)
+            except Exception as e:
+                st.error(f"❌ Erreur: {e}")
+                st.exception(e)
+
+

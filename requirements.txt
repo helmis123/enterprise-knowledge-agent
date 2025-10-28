@@ -131,3 +131,11 @@ black==23.11.0
 # flake8: Linter Python
 #   Utilisé pour: Vérifier qualité du code
 flake8==6.1.0
+
+# reportlab: Génération de PDF
+#   Utilisé pour: Créer des documents PDF
+reportlab==4.0.7
+
+# faker: Génération de données factices
+#   Utilisé pour: Générer des données de test réalistes
+faker==19.6.2
