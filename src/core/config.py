@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 
 # Chemins
-BASE_DIR = Path(__file__).parent.parent
+BASE_DIR = Path(__file__).parent.parent.parent  # Racine du projet
 DATA_DIR = BASE_DIR / "data"
 CHROMA_DB_DIR = BASE_DIR / "chroma_db"
 LOGS_DIR = BASE_DIR / "logs"
